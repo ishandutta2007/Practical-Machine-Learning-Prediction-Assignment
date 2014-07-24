@@ -1,0 +1,89 @@
+---
+title: "DSTrack_PracticalMLAssignment"
+output: html_document
+---
+Prediction Assignment
+=============================
+
+```{r output='hide'}
+options(warn=-1)
+library(caret)
+library(randomForest)
+library(Hmisc)
+
+library(foreach)
+library(doParallel)
+set.seed(4356)
+```
+
+The first step is to load the csv file data to dataframe:
+
+```{r}
+data <- read.csv("C:/Users/DELL/Desktop/D.Science/8.predmachlearn-002/pml-training.csv")
+#summary(data)
+#describe(data)
+#sapply(data, class)
+#str(data)
+```
+
+
+```{r}
+data <- read.csv("C:/Users/DELL/Desktop/D.Science/8.predmachlearn-002/pml-training.csv", na.strings=c("#DIV/0!") )
+data_cv <- read.csv("C:/Users/DELL/Desktop/D.Science/8.predmachlearn-002/pml-testing.csv" )
+```
+
+And force the cast to numeric values for the specified columns (i.e.: 8 to end) :
+
+```{r}
+#cData <- rbind(data[,1:159],data_cv[,1:159])
+cData <- data#[,1:159]
+for(i in c(8:ncol(cData)-1)) {cData[,i] = as.numeric(as.character(cData[,i]))}
+tData <- data_cv
+for(i in c(8:ncol(tData)-1)) {tData[,i] = as.numeric(as.character(tData[,i]))}
+```
+
+
+```{r}
+featuresnames <- colnames(cData[colSums(is.na(cData)) == 0])[-(1:7)]
+features <- cData[featuresnames]
+tData$classe <- 1
+tData <- tData[featuresnames]
+```
+
+We have now a dataframe "features which contains all the workable features. So the first step is to split the dataset in two part : the first for training and the second for testing.
+
+```{r}
+xdata <- createDataPartition(y=features$classe, p=.9, list=FALSE )
+training <- features[xdata,]
+testing <- features[-xdata,]
+```
+
+
+```{r}
+registerDoParallel()
+model <- foreach(ntree=rep(100, 4), .combine=randomForest::combine) %dopar% randomForest::randomForest(training[-ncol(training)], training$classe, ntree=ntree)
+```
+
+To evaluate the model we will use the confusionmatrix method and we will focus on accuracy, sensitivity & specificity metrics :
+
+```{r}
+predictionsTr <- predict(model, newdata=training)
+confusionMatrix(predictionsTr,training$classe)
+
+predictionsTe <- predict(model, newdata=testing)
+confusionMatrix(predictionsTe,testing$classe)
+
+```
+
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("C:/Users/DELL/Desktop/D.Science/8.predmachlearn-002/problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+answers = predictionsFinal <- predict(model, newdata=tData)
+pml_write_files(answers)
+```
